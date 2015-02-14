@@ -7,7 +7,7 @@
 //
 
 #import "DrawView.h"
-//#import "UIBezierPath+Elements.h"
+#import "UIBezierPath+Elements.h"
 
 #define drawSpeed 80.0f
 
@@ -42,6 +42,11 @@
 }
 
 #pragma mark - UI Configuration
+- (void)setCanEdit:(BOOL)canEdit {
+    _canEdit = canEdit;
+    self.userInteractionEnabled = canEdit;
+}
+
 - (void)setupUI {
     // Array of all the paths the user will draw.
     bezierPath = [[UIBezierPath alloc] init];
@@ -49,9 +54,9 @@
     [bezierPath setLineWidth:_strokeWidth];
     [bezierPath setMiterLimit:0];
     // Default colors for drawing.
-    self.backgroundColor = [UIColor whiteColor];
+    self.backgroundColor = [UIColor clearColor];
     _strokeColor = [UIColor blackColor];
-    _canEdit = YES;
+    self.canEdit = YES;
 }
 
 - (void)setStrokeColor:(UIColor *)strokeColor {
@@ -60,6 +65,9 @@
 
 #pragma mark - View Drawing
 - (void)drawRect:(CGRect)rect {
+    [bezierPath setLineCapStyle:kCGLineCapRound];
+    [bezierPath setLineWidth:_strokeWidth];
+    [bezierPath setMiterLimit:0];
     // Drawing code
     if (!isAnimating) {
         [_strokeColor setStroke];
@@ -75,18 +83,18 @@
 - (void)drawPath:(CGPathRef)path {
     isDrawingExisting = YES;
     BOOL previousCanEdit = _canEdit;
-    _canEdit = NO;
+    self.canEdit = NO;
     bezierPath = [UIBezierPath new];
     bezierPath.CGPath = path;
-    bezierPath.lineCapStyle = kCGLineCapRound;
-    bezierPath.lineWidth = _strokeWidth;
-    bezierPath.miterLimit = 0.0f;
+    //    bezierPath.lineCapStyle = kCGLineCapRound;
+    //    bezierPath.lineWidth = _strokeWidth;
+    //    bezierPath.miterLimit = 0.0f;
     // If iPad apply the scale first so the paths bounds is in its final state.
-    if ([[[UIDevice currentDevice] model] rangeOfString:@"iPad"].location != NSNotFound) {
-        [bezierPath setLineWidth:_strokeWidth];
-        CGAffineTransform scaleTransform = CGAffineTransformMakeScale(2, 2);
-        [bezierPath applyTransform:scaleTransform];
-    }
+    //    if ([[[UIDevice currentDevice] model] rangeOfString:@"iPad"].location != NSNotFound) {
+    //        [bezierPath setLineWidth:_strokeWidth];
+    //        CGAffineTransform scaleTransform = CGAffineTransformMakeScale(2, 2);
+    //        [bezierPath applyTransform:scaleTransform];
+    //    }
     // Center the drawing within the view.
     //    CGRect charBounds = bezierPath.bounds;
     //    CGFloat charX = CGRectGetMidX(charBounds);
@@ -106,7 +114,7 @@
         [blockView setAlpha:0.5];
         [self addSubview:blockView];
     }
-    _canEdit = previousCanEdit;
+    self.canEdit = previousCanEdit;
 }
 
 - (void)drawBezier:(UIBezierPath *)path {
@@ -115,7 +123,15 @@
 
 - (IBAction)undoDrawing:(id)sender {
     //    [paths removeLastObject];
+    bezierPath = [bezierPath bezierPathWithoutLastSubPath];
     [self setNeedsDisplay];
+}
+
+- (void)undo {
+    BOOL previousEdit = _canEdit;
+    self.canEdit = NO;
+    [self undoDrawing:nil];
+    self.canEdit = previousEdit;
 }
 
 - (void)setMode:(DrawingMode)mode {
@@ -185,12 +201,8 @@
     animateLayer.lineCap = @"round";
     // Create animation of path of the stroke end.
     
-    NSMutableArray *elements = [NSMutableArray array];
-    CGPathApply(animatingPath.CGPath, (__bridge void *)elements, GetBezierElements2);
-    
-    
     CABasicAnimation *animation = [[CABasicAnimation alloc] init];
-    animation.duration = 1.0f / drawSpeed * elements.count;
+    animation.duration =  1.0f / drawSpeed * animatingPath.count;
     animation.fromValue = @(0.0f);
     animation.toValue = @(1.0f);
     animation.delegate = self;
@@ -208,7 +220,7 @@
 
 #pragma mark - Touch Detecting
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
-    if (_canEdit) {
+    if (self.canEdit) {
         [bezierPath setLineCapStyle:kCGLineCapRound];
         [bezierPath setLineWidth:_strokeWidth];
         [bezierPath setMiterLimit:0];
@@ -218,20 +230,21 @@
     }
 }
 
-- (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event {
-    if (_canEdit) {
-        UITouch *movedTouch = [[touches allObjects] objectAtIndex:0];
-        [bezierPath addLineToPoint:[movedTouch locationInView:self]];
+- (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event {
+    if (self.canEdit) {
+        UITouch *currentTouch = [[touches allObjects] objectAtIndex:0];
+        [bezierPath moveToPoint:[currentTouch locationInView:self]];
+        [bezierPath addLineToPoint:[currentTouch locationInView:self]];
         [self setNeedsDisplay];
     }
 }
 
-#pragma mark - Count Path Lenght
-// Convert one element to BezierElement and save to array
-void GetBezierElements2(void *info, const CGPathElement *element) {
-    NSMutableArray *bezierElements = (__bridge NSMutableArray *)info;
-    if (element)
-        [bezierElements addObject:@"test"];
+- (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event {
+    if (self.canEdit) {
+        UITouch *movedTouch = [[touches allObjects] objectAtIndex:0];
+        [bezierPath addLineToPoint:[movedTouch locationInView:self]];
+        [self setNeedsDisplay];
+    }
 }
 
 @end
