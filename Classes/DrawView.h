@@ -40,4 +40,6 @@ typedef enum : NSUInteger {
 // Current UIImage of drawing view
 - (UIImage *)imageRepresentation;
 
+- (void)undo;
+
 @end
